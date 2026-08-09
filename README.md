@@ -1,5 +1,11 @@
 # 📊 ComposeCharts (MPAndroidChart Feature-Parity Library in Jetpack Compose)
 
+![Kotlin](https://img.shields.io/badge/Kotlin-2.1.0-blue?logo=kotlin)
+![Compose Multiplatform](https://img.shields.io/badge/Compose-1.7.3-orange?logo=jetpackcompose)
+![Android](https://img.shields.io/badge/Platform-Android-green?logo=android)
+![iOS](https://img.shields.io/badge/Platform-iOS-lightgrey?logo=apple)
+![License](https://img.shields.io/badge/License-MIT-green)
+
 `ComposeCharts` is a high-performance, declarative, and cross-platform chart library built with **Jetpack Compose Multiplatform**. It re-imagines the feature set of the classic `MPAndroidChart` with modern Compose declarative APIs, GPU-accelerated Skia rendering, and reactive state management.
 
 ---
