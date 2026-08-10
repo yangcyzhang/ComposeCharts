@@ -14,6 +14,24 @@ kotlin {
         }
     }
     
+    jvm("desktop")
+    
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs {
+        browser {
+            val projectDir = project.projectDir
+            commonWebpackConfig {
+                outputFileName = "composeApp.js"
+                devServer = (devServer ?: org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpackConfig.DevServer()).copy(
+                    static = (devServer?.static ?: mutableListOf()).apply {
+                        add(projectDir.path)
+                    }
+                )
+            }
+        }
+        binaries.executable()
+    }
+
     listOf(
         iosX64(),
         iosArm64(),

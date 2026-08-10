@@ -8,52 +8,68 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.sp
 
+data class MarkerViewConfig(
+    val backgroundColor: Color = Color(0xDD1E2638),
+    val titleColor: Color = Color.LightGray,
+    val valueColor: Color = Color.White,
+    val titleFontSize: Float = 10f,
+    val valueFontSize: Float = 12f,
+    val padding: Float = 16f,
+    val cornerRadius: Float = 10f,
+    val badgeWidth: Float = 6f
+)
+
 @OptIn(ExperimentalTextApi::class)
 fun DrawScope.drawMarkerView(
     position: Offset,
     title: String,
     valueText: String,
     textMeasurer: TextMeasurer,
-    badgeColor: Color = Color(0xFF00ADB5)
+    badgeColor: Color = Color(0xFF00ADB5),
+    config: MarkerViewConfig = MarkerViewConfig()
 ) {
     val titleResult = textMeasurer.measure(
         text = AnnotatedString(title),
-        style = TextStyle(color = Color.LightGray, fontSize = 10.sp)
+        style = TextStyle(color = config.titleColor, fontSize = config.titleFontSize.sp)
     )
     val valueResult = textMeasurer.measure(
         text = AnnotatedString(valueText),
-        style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        style = TextStyle(
+            color = config.valueColor,
+            fontSize = config.valueFontSize.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+        )
     )
 
-    val cardWidth = maxOf(titleResult.size.width, valueResult.size.width) + 32f
+    val cardWidth = maxOf(titleResult.size.width, valueResult.size.width) + config.padding * 2f
     val cardHeight = titleResult.size.height + valueResult.size.height + 20f
 
-    // 智能边界避让：计算 Card 卡片在屏幕之内的坐标
+    // 智能边界避让
     val rawLeft = position.x - cardWidth / 2f
     val cardLeft = rawLeft.coerceIn(20f, size.width - cardWidth - 20f)
     val cardTop = (position.y - cardHeight - 20f).coerceAtLeast(10f)
 
-    // 1. 绘制 MarkerView 阴影与玻璃态背景框
+    // 1. 绘制背景与装饰
     drawRoundRect(
-        color = Color(0xDD1E2638),
+        color = config.backgroundColor,
         topLeft = Offset(cardLeft, cardTop),
         size = Size(cardWidth, cardHeight),
-        cornerRadius = CornerRadius(10f, 10f)
+        cornerRadius = CornerRadius(config.cornerRadius, config.cornerRadius)
     )
     drawRoundRect(
         color = badgeColor,
         topLeft = Offset(cardLeft, cardTop),
-        size = Size(6f, cardHeight),
-        cornerRadius = CornerRadius(3f, 3f)
+        size = Size(config.badgeWidth, cardHeight),
+        cornerRadius = CornerRadius(config.badgeWidth / 2f, config.badgeWidth / 2f)
     )
 
-    // 2. 绘制标题与具体数值
+    // 2. 绘制文本
     drawText(
         textLayoutResult = titleResult,
-        topLeft = Offset(cardLeft + 16f, cardTop + 8f)
+        topLeft = Offset(cardLeft + config.padding, cardTop + 8f)
     )
     drawText(
         textLayoutResult = valueResult,
-        topLeft = Offset(cardLeft + 16f, cardTop + 10f + titleResult.size.height)
+        topLeft = Offset(cardLeft + config.padding, cardTop + 10f + titleResult.size.height)
     )
 }

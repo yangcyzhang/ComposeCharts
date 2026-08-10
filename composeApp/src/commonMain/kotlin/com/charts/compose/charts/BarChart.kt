@@ -10,11 +10,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.charts.compose.core.*
+import com.charts.compose.data.AnimationType
 import com.charts.compose.data.BarDataSet
 import com.charts.compose.data.BarEntry
 
@@ -24,7 +26,9 @@ fun BarChart(
     dataSets: List<BarDataSet>,
     modifier: Modifier = Modifier,
     xAxisConfig: AxisConfig = AxisConfig(),
-    yAxisConfig: AxisConfig = AxisConfig()
+    yAxisConfig: AxisConfig = AxisConfig(),
+    markerConfig: MarkerViewConfig = MarkerViewConfig(),
+    customMarkerView: (DrawScope.(position: Offset, dataset: BarDataSet, entry: BarEntry) -> Unit)? = null
 ) {
     val textMeasurer = rememberTextMeasurer()
     val viewport = remember { ViewportHandler() }
@@ -70,7 +74,8 @@ fun BarChart(
                             val right = left + barWidth
 
                             if (tapOffset.x in left..right) {
-                                val topY = viewport.toPixelY(entry.y * ds.animateProgress)
+                                val animY = if (ds.animationType == AnimationType.VERTICAL) entry.y * ds.animateProgress else entry.y
+                                val topY = viewport.toPixelY(animY)
                                 closest = Pair(ds, entry)
                                 closestPt = Offset((left + right) / 2f, topY)
                             }
@@ -117,6 +122,20 @@ fun BarChart(
             dataSets.forEachIndexed { setIndex, dataSet ->
                 if (!dataSet.isVisible) return@forEachIndexed
 
+                val chartAlpha = if (dataSet.animationType == AnimationType.REVEAL) dataSet.animateProgress else 1f
+                
+                drawContext.canvas.save()
+                if (dataSet.animationType == AnimationType.HORIZONTAL) {
+                    val clipWidth = viewport.contentRect.width * dataSet.animateProgress
+                    drawContext.canvas.clipRect(
+                        left = viewport.contentRect.left,
+                        top = viewport.contentRect.top,
+                        right = viewport.contentRect.left + clipWidth,
+                        bottom = viewport.contentRect.bottom,
+                        clipOp = androidx.compose.ui.graphics.ClipOp.Intersect
+                    )
+                }
+
                 dataSet.entries.forEach { entry ->
                     val baseX = viewport.toPixelX(entry.x)
                     val offsetShift = (setIndex - (dataSetCount - 1) / 2f) * (barWidth + 6f)
@@ -127,9 +146,14 @@ fun BarChart(
                         val colorsList = if (dataSet.colors.isNotEmpty()) dataSet.colors else listOf(dataSet.color)
 
                         entry.yValues.forEachIndexed { valIndex, valY ->
-                            val bottomY = viewport.toPixelY(runningY * dataSet.animateProgress)
+                            val bottomAnimY = if (dataSet.animationType == AnimationType.VERTICAL) runningY * dataSet.animateProgress else runningY
+                            val bottomY = viewport.toPixelY(bottomAnimY)
+                            
                             runningY += valY
-                            val topY = viewport.toPixelY(runningY * dataSet.animateProgress)
+                            
+                            val topAnimY = if (dataSet.animationType == AnimationType.VERTICAL) runningY * dataSet.animateProgress else runningY
+                            val topY = viewport.toPixelY(topAnimY)
+                            
                             val barHeight = bottomY - topY
                             val color = colorsList[valIndex % colorsList.size]
 
@@ -137,24 +161,28 @@ fun BarChart(
                                 color = color,
                                 topLeft = Offset(left, topY),
                                 size = Size(barWidth, barHeight),
-                                cornerRadius = CornerRadius(4f, 4f)
+                                cornerRadius = CornerRadius(4f, 4f),
+                                alpha = chartAlpha
                             )
                         }
 
-                        // 绘制数值 Value Text Label，精准紧贴柱体顶端上方 4px 位置
+                        // 绘制数值 Value Text Label
                         if (dataSet.drawValues) {
-                            val totalTopY = viewport.toPixelY(runningY * dataSet.animateProgress)
+                            val totalTopAnimY = if (dataSet.animationType == AnimationType.VERTICAL) runningY * dataSet.animateProgress else runningY
+                            val totalTopY = viewport.toPixelY(totalTopAnimY)
                             val labelResult = textMeasurer.measure(
                                 text = AnnotatedString(entry.y.toInt().toString()),
-                                style = TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                style = TextStyle(color = Color.White.copy(alpha = chartAlpha), fontSize = 11.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                             )
                             drawText(
                                 textLayoutResult = labelResult,
-                                topLeft = Offset(left + barWidth / 2f - labelResult.size.width / 2f, totalTopY - labelResult.size.height - 4f)
+                                topLeft = Offset(left + barWidth / 2f - labelResult.size.width / 2f, totalTopY - labelResult.size.height - 4f),
+                                alpha = chartAlpha
                             )
                         }
                     }
                 }
+                drawContext.canvas.restore()
             }
 
             // 绘制图例
@@ -163,13 +191,18 @@ fun BarChart(
             // 绘制 MarkerView 触控框
             highlightedOffset?.let { offset ->
                 highlightedPoint?.let { (ds, entry) ->
-                    drawMarkerView(
-                        position = offset,
-                        title = ds.label,
-                        valueText = "Total Y: ${entry.y.toInt()}",
-                        textMeasurer = textMeasurer,
-                        badgeColor = ds.color
-                    )
+                    if (customMarkerView != null) {
+                        customMarkerView(offset, ds, entry)
+                    } else {
+                        drawMarkerView(
+                            position = offset,
+                            title = ds.label,
+                            valueText = "Total Y: ${entry.y.toInt()}",
+                            textMeasurer = textMeasurer,
+                            badgeColor = ds.color,
+                            config = markerConfig
+                        )
+                    }
                 }
             }
         }

@@ -10,6 +10,13 @@ open class Entry(
     val data: Any? = null
 )
 
+enum class AnimationType {
+    NONE,
+    VERTICAL,   // 从下往上增长
+    HORIZONTAL, // 从左往右绘制
+    REVEAL      // 渐显
+}
+
 // 柱状图数据点（支持单柱与多重堆叠柱）
 class BarEntry(
     override val x: Float,
@@ -50,7 +57,10 @@ abstract class DataSet<T>(
     var color: Color = Color(0xFF00ADB5)
     var colors: List<Color> = emptyList()
     var drawValues: Boolean = false
+    
+    // 动画相关
     var animateProgress: Float = 1f
+    var animationType: AnimationType = AnimationType.VERTICAL
 }
 
 // 折线图数据集

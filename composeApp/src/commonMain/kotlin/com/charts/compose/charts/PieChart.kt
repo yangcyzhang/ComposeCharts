@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.dp
@@ -21,7 +22,9 @@ import kotlin.math.*
 @Composable
 fun PieChart(
     dataSet: PieDataSet,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    markerConfig: MarkerViewConfig = MarkerViewConfig(),
+    customMarkerView: (DrawScope.(position: Offset, dataset: PieDataSet, entry: PieEntry) -> Unit)? = null
 ) {
     val textMeasurer = rememberTextMeasurer()
     var selectedSliceIndex by remember { mutableStateOf(-1) }
@@ -124,13 +127,18 @@ fun PieChart(
             highlightedOffset?.let { offset ->
                 highlightedEntry?.let { entry ->
                     val percent = (entry.value / totalValue * 100f).toInt()
-                    drawMarkerView(
-                        position = offset,
-                        title = entry.label,
-                        valueText = "${entry.value.toInt()} ($percent%)",
-                        textMeasurer = textMeasurer,
-                        badgeColor = entry.color
-                    )
+                    if (customMarkerView != null) {
+                        customMarkerView(offset, dataSet, entry)
+                    } else {
+                        drawMarkerView(
+                            position = offset,
+                            title = entry.label,
+                            valueText = "${entry.value.toInt()} ($percent%)",
+                            textMeasurer = textMeasurer,
+                            badgeColor = entry.color,
+                            config = markerConfig
+                        )
+                    }
                 }
             }
         }

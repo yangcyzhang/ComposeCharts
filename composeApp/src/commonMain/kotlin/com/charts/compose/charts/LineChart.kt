@@ -8,12 +8,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.charts.compose.core.*
+import com.charts.compose.data.AnimationType
 import com.charts.compose.data.Entry
 import com.charts.compose.data.LineDataSet
 import kotlin.math.abs
@@ -24,7 +26,9 @@ fun LineChart(
     dataSets: List<LineDataSet>,
     modifier: Modifier = Modifier,
     xAxisConfig: AxisConfig = AxisConfig(),
-    yAxisConfig: AxisConfig = AxisConfig()
+    yAxisConfig: AxisConfig = AxisConfig(),
+    markerConfig: MarkerViewConfig = MarkerViewConfig(),
+    customMarkerView: (DrawScope.(position: Offset, dataset: LineDataSet, entry: Entry) -> Unit)? = null
 ) {
     val textMeasurer = rememberTextMeasurer()
     val viewport = remember { ViewportHandler() }
@@ -123,7 +127,12 @@ fun LineChart(
                 val pixelPoints = mutableListOf<Offset>()
 
                 dataSet.entries.forEachIndexed { index, entry ->
-                    val animatedY = entry.y * dataSet.animateProgress
+                    val animatedY = if (dataSet.animationType == AnimationType.VERTICAL) {
+                        entry.y * dataSet.animateProgress
+                    } else {
+                        entry.y
+                    }
+                    
                     val px = viewport.toPixelX(entry.x)
                     val py = viewport.toPixelY(animatedY)
                     val pt = Offset(px, py)
@@ -154,44 +163,62 @@ fun LineChart(
                     }
                 }
 
+                // 计算裁剪区域（用于 HORIZONTAL 动画）
+                val chartAlpha = if (dataSet.animationType == AnimationType.REVEAL) dataSet.animateProgress else 1f
+                
+                drawContext.canvas.save()
+                if (dataSet.animationType == AnimationType.HORIZONTAL) {
+                    val clipWidth = viewport.contentRect.width * dataSet.animateProgress
+                    drawContext.canvas.clipRect(
+                        left = viewport.contentRect.left,
+                        top = viewport.contentRect.top,
+                        right = viewport.contentRect.left + clipWidth,
+                        bottom = viewport.contentRect.bottom,
+                        clipOp = ClipOp.Intersect
+                    )
+                }
+
                 // 绘制渐变色填充
                 if (dataSet.drawFilled) {
                     val brush = dataSet.fillBrush ?: Brush.verticalGradient(
-                        colors = listOf(dataSet.color.copy(alpha = 0.4f), Color.Transparent),
+                        colors = listOf(dataSet.color.copy(alpha = 0.4f * chartAlpha), Color.Transparent),
                         startY = viewport.contentRect.top,
                         endY = viewport.contentRect.bottom
                     )
-                    drawPath(fillPath, brush = brush)
+                    drawPath(fillPath, brush = brush, alpha = chartAlpha)
                 }
 
                 // 绘制折线
                 drawPath(
                     path = linePath,
                     color = dataSet.color,
-                    style = Stroke(width = dataSet.lineWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    style = Stroke(width = dataSet.lineWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
+                    alpha = chartAlpha
                 )
 
                 // 绘制数据圆点与数值 Label
                 pixelPoints.forEachIndexed { idx, pt ->
                     if (pt.x in viewport.contentRect.left..viewport.contentRect.right) {
                         if (dataSet.drawCircles) {
-                            drawCircle(color = Color.White, radius = dataSet.circleRadius + 2f, center = pt)
-                            drawCircle(color = dataSet.color, radius = dataSet.circleRadius, center = pt)
+                            drawCircle(color = Color.White.copy(alpha = chartAlpha), radius = dataSet.circleRadius + 2f, center = pt)
+                            drawCircle(color = dataSet.color, radius = dataSet.circleRadius, center = pt, alpha = chartAlpha)
                         }
 
                         if (dataSet.drawValues) {
                             val entry = dataSet.entries[idx]
                             val labelResult = textMeasurer.measure(
                                 text = AnnotatedString(entry.y.toInt().toString()),
-                                style = TextStyle(color = Color.White, fontSize = 10.sp)
+                                style = TextStyle(color = Color.White.copy(alpha = chartAlpha), fontSize = 10.sp)
                             )
                             drawText(
                                 textLayoutResult = labelResult,
-                                topLeft = Offset(pt.x - labelResult.size.width / 2f, pt.y - labelResult.size.height - 8f)
+                                topLeft = Offset(pt.x - labelResult.size.width / 2f, pt.y - labelResult.size.height - 8f),
+                                alpha = chartAlpha
                             )
                         }
                     }
                 }
+                drawContext.canvas.restore()
             }
 
             // 3. 绘制底层图例 (Legend)
@@ -209,13 +236,18 @@ fun LineChart(
                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
                         )
 
-                        drawMarkerView(
-                            position = offset,
-                            title = ds.label,
-                            valueText = "X: ${entry.x.toInt()}, Y: ${entry.y}",
-                            textMeasurer = textMeasurer,
-                            badgeColor = ds.color
-                        )
+                        if (customMarkerView != null) {
+                            customMarkerView(offset, ds, entry)
+                        } else {
+                            drawMarkerView(
+                                position = offset,
+                                title = ds.label,
+                                valueText = "X: ${entry.x.toInt()}, Y: ${entry.y}",
+                                textMeasurer = textMeasurer,
+                                badgeColor = ds.color,
+                                config = markerConfig
+                            )
+                        }
                     }
                 }
             }
